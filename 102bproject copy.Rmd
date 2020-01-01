@@ -1,0 +1,176 @@
+---
+title: "STATS 102B Project"
+author: "Joshua Susanto"
+date: "2023-06-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1
+
+Consider a random variable X from a Weibull distribution. This distribution is extensively used in material science and industrial statistics, since it can model well the "aging" process of materials and components on physical systems. It is characterized by its shape parameter k \> 0 and its scale parameter λ.
+
+To generate a random sample s of size n from a Weibull distribution with shape parameter k and scale parameter λ use the following command:
+
+s = rweibull(n,shape=k,scale=lambda)
+
+**Part (a):**
+
+Evaluate the coverage probability and average length of the following 95% confidence intervals for the population median based on random samples of size n = 100 and 250, drawn from a Weibull distribution with shape parameter k = 1.5 and scale parameter λ = 1.
+
+```{r}
+# Defining Necessary Functions
+bootsampling <- function(x, boot.replicates = B) {
+  x = as.matrix(x)
+  nx = nrow(x)
+  bootsamples = replicate(boot.replicates, x[sample.int(nx, replace = TRUE), ])
+}
+
+
+boot.stats =  function(boot.sample,myfun,...){
+  if(is.matrix(boot.sample)){
+    theta = apply(boot.sample,2,myfun,...)
+  } else {
+    theta = apply(boot.sample,3,myfun,...)
+  }
+  if(is.matrix(theta)){
+    return(list(theta=theta,cov=cov(t(theta))))
+  } else{
+    return(list(theta=theta,se=sd(theta)))
+  } 
+}
+```
+
+
+1.  Normal bootstrap confidence interval.
+
+2.  Basic bootstrap confidence interval.
+
+3.  Percentile bootstrap confidence interval.
+
+4.  Bootstrap-t (studentized) confidence interval.
+
+Your results should be based on M = 100, 500 random samples and B = 5000 bootstrap replicates. Provide a description of your simulation focusing on how you calculated the coverage probability and the average length of each type of confidence interval, a summary of your findings with comments, and your R code and output. Your findings should be organized in a table, where the columns correspond to the different types of bootstrap confidence intervals and the rows to the coverage probability and the average length for each of the n, M combination. Hence, your table should have 8 rows and 4 columns with clear description of each one.
+
+
+
+Note that we are using reduced bootstrap amounts and iterated bootstrap amount due to my computer being really old and weak. B has been set to 1000 and L has been set to 100.
+
+```{r}
+# initialize n sample size, m samples, b bootstraps, alpha, z-val, shape, and scale
+n = c(100,250)
+shape = 1.5
+lambda = 1
+b = 500
+M = c(100,500)
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+
+# true median
+med = lambda*(log(2)^(1/shape))
+
+# initialize table
+final_table = data.frame((matrix(ncol = 4, nrow = 0)))
+
+
+for (i in 1:length(n)) {
+  for (j in 1:length(M)) {
+    # initialize data frames for confidence intervals
+    normal_CI = data.frame(matrix(ncol = 3, nrow = 0))
+    basic_CI = data.frame(matrix(ncol = 3, nrow = 0))
+    percentile_CI = data.frame(matrix(ncol = 3, nrow = 0))
+    student_CI = data.frame(matrix(ncol = 3, nrow = 0))
+    coverage_normal = c()
+    coverage_basic = c()
+    coverage_percentile = c()
+    coverage_student = c()
+    for (k in 1:M[i]) {
+      sample_m = rweibull(n[i],shape=shape,scale=lambda) # take m samples of size n
+      sample_stat = median(sample_m) # find sample statistic of sample m
+      boot.samples = bootsampling(sample_m,b) # take b bootsamples from sample m 
+      sample_stat_bs = apply(boot.samples, 2, median) # find the median for every bootstrap sample
+      se <- sd(sample_stat_bs)
+   
+      # normal bootstrap CI
+      normal_CI = rbind(normal_CI, cbind(sample_stat - zval*se, sample_stat + zval*se))
+      # does this confidence interval contain the true median?
+      if (tail(normal_CI$V1,1) < med & tail(normal_CI$V2,1) > med) {
+        coverage_normal = append(coverage_normal,1)
+      } else {
+        coverage_normal = append(coverage_normal,0)
+      }
+   
+      # basic bootstrap CI
+      basic_CI = rbind(basic_CI, cbind(2*sample_stat - quantile(sample_stat_bs, probs = (1 - alpha/2)), 2*sample_stat - quantile(sample_stat_bs, probs = (alpha/2))))
+      # does this confidence interval contain the true median?
+      if (tail(basic_CI$V1,1) < med & tail(basic_CI$V2,1) > med) {
+        coverage_basic = append(coverage_basic,1)
+      } else {
+        coverage_basic = append(coverage_basic,0)
+      }
+      
+      # percentile bootstrap CI
+      percentile_CI = rbind(percentile_CI, cbind(quantile(sample_stat_bs, probs = alpha/2), quantile(sample_stat_bs, probs = (1 - (alpha/2)))))
+      # does this confidence interval contain the true median?
+      if (tail(percentile_CI$V1,1) < med & tail(percentile_CI$V2,1) > med) {
+        coverage_percentile = append(coverage_percentile,1)
+      } else {
+        coverage_percentile = append(coverage_percentile,0)
+      }
+      
+      # studentized bootstrap CI
+      boot.samples.SE = rep(0, b)
+      for (l in 1:b) {
+        iterated.samples <- bootsampling(boot.samples[,l], 50) # using L = 100
+        sample_stat_l <- apply(iterated.samples, 2, median)
+        boot.samples.SE[l] <- sd(sample_stat_l)
+      } 
+      t = (sample_stat_bs - sample_stat)/boot.samples.SE
+      qval = quantile(t, probs = c(alpha/2, 1 - alpha/2)) 
+      student_CI = rbind(student_CI, cbind(sample_stat - qval[2]*se, sample_stat - qval[1]*se))
+      # does this confidence interval contain the true median?
+      if (tail(student_CI$V1,1) < med & tail(student_CI$V2,1) > med) {
+        coverage_student = append(coverage_student,1)
+      } else {
+        coverage_student = append(coverage_student,0)
+      }
+      
+    }
+    avg_length = c(mean(normal_CI$V2 - normal_CI$V1), mean(basic_CI$V2 - basic_CI$V1), mean(percentile_CI$V2 - percentile_CI$V1), mean(student_CI$V2 - student_CI$V1))
+    coverage = c(mean(coverage_normal), mean(coverage_basic), mean(coverage_percentile), mean(coverage_student))
+    final_table = rbind(final_table, avg_length, coverage)
+  }  
+}
+
+names(final_table) = c('normal','basic','percentile','studentized')
+rownames(final_table) = c('Length n = 100, m = 100','Coverage n = 100, m = 100','Length n = 100, m = 500','Coverage n = 100, m = 500','Length n = 250, m = 100','Coverage n = 250, m = 100','Length n = 250, m = 500','Coverage n = 250, m = 500')
+final_table
+
+```
+
+
+```{r}
+library(MASS)
+set.seed(405568250)
+# simulate data
+n = 100000 # sample size
+p = 20 # number of predictors
+# create correlation matrix for regressors
+R = matrix(c(rep(0.99, p/2), rep(0.9, p/2)), p, p)
+diag(R) = 1
+mean.vector = rep(0,20)
+# generate design matrix X
+design = mvrnorm(n, mu = mean.vector, R)
+# generate error term
+error.term = rnorm(n,0,1.25)
+# generate beta
+beta_true = rep(3,20)
+# generate response y
+response = design%*%beta_true + error.term
+
+response
+```
+
