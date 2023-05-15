@@ -1,0 +1,669 @@
+---
+title: "STATS 102B HW2"
+author: "Joshua Susanto"
+date: "2023-04-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(tidyverse)
+```
+
+## Problem 1: Recall Problem 1 in Homework 1.
+
+Consider the correlation coefficient r between two random variables X and Y. Recall that it is a measure of linear association between X and Y and takes values in the interval [−1, 1]; i.e., r(X,Y) ∈ [−1, 1].
+
+### (a) Use the code from Homework 1 to simulate data from a bivariate normal distribution with mean vector µ = [0 0] and correlation matrix
+
+```{r}
+R <- matrix(c(1,'r','r',1),2,2)
+R
+```
+
+for the following cases:
+
+1. Sample size n ∈ {50, 200} and correlation coefficient r = 0
+
+```{r}
+set.seed(405568250)
+n <- c(50, 200)
+mu <- c(0, 0)
+sigma <- matrix(c(1, 0, 0, 1), 2, 2)
+par(mfrow = c(1,2))
+
+for(i in n){
+  plot(mvrnorm(i, mu, sigma), pch = 16, cex.main = 0.85,
+         xlab = "X_1", ylab = "X_2", main = paste(i, "Bivariate Normal Draws: r = 0"))
+  points(x = mu[1], y = mu[2], col = "orange", pch = 4, cex = 2)
+}
+```
+
+
+2. Sample size n ∈ {50, 200} and correlation coefficient r = 0.5
+
+```{r}
+set.seed(405568250)
+n <- c(50, 200)
+mu <- c(0, 0)
+sigma <- matrix(c(1, 0.5, 0.5, 1), 2, 2)
+par(mfrow = c(1,2))
+
+for(i in n){
+  plot(mvrnorm(i, mu, sigma), pch = 16, cex.main = 0.85,
+         xlab = "X_1", ylab = "X_2", main = paste(i, "Bivariate Normal Draws: r = 0.5"))
+  points(x = mu[1], y = mu[2], col = "orange", pch = 4, cex = 2)
+}
+```
+
+3. Sample size n ∈ {50, 200} and correlation coefficient r = 0.85
+
+```{r}
+set.seed(405568250)
+n <- c(50, 200)
+mu <- c(0, 0)
+sigma <- matrix(c(1, 0.85, 0.85, 1), 2, 2)
+par(mfrow = c(1,2))
+
+for(i in n){
+  plot(mvrnorm(i, mu, sigma), pch = 16, cex.main = 0.85,
+         xlab = "X_1", ylab = "X_2", main = paste(i, "Bivariate Normal Draws: r = 0.85"))
+  points(x = mu[1], y = mu[2], col = "orange", pch = 4, cex = 2)
+}
+```
+
+
+### (b) Obtain the following Bootstrap Confidence Intervals for the correlation coefficient r for the three cases above. 
+
+```{r}
+bootsampling <- function(x, boot.replicates = B) {
+  x = as.matrix(x)
+  nx = nrow(x)
+  bootsamples = replicate(boot.replicates, x[sample.int(nx, replace = TRUE), ])
+}
+```
+
+
+Calculate the length and the shape of each type of Bootstrap CI and report them
+as well.
+
+Discuss how you selected the number of bootstrap replicates B.
+
+Comment on the results; in particular how the various bootstrap CI behave as a function of the sample size n, and the value of the correlation coefficient r.
+
+
+
+
+In general, we will give the shape of a confidence interval by measuring the symmetry of the CI with respect to the sample statistic. This will be done by finding the ratio of the distance between the UB/LBs and our statistic.
+
+$$Ratio_{sym} = \frac{|UB - \hat\theta|}{|LB - \hat\theta|}$$
+
+
+**1. Normal Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+n = c(50, 200) # Size of a single sample
+B = c(200, 500, 1000, 2000, 5000, 10000) # Number of bootstrap replicates
+r = c(0,0.5,0.85)
+
+normal_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+
+for (i in r) {
+  for (j in n) {
+    mu <- c(0, 0)
+    sigma <- matrix(c(1, i, i, 1), 2, 2)
+    x <- mvrnorm(j, mu, sigma)
+    theta_hat <- cor(x)[2]
+    for (k in B) {
+      boot.samples = bootsampling(x, k)
+      xbar = apply(boot.samples, 3, cor)[2,]
+      se <- sd(xbar)
+      normal_CI = rbind(normal_CI, cbind(theta_hat - zval*se, theta_hat + zval*se)) 
+    } 
+    normal_CI$B <- B
+    normal_CI$N <- rep(j, length(B))
+    normal_CI$SampleCoefficient <- rep(theta_hat, length(B))
+    normal_CI$Length <- normal_CI$V2 - normal_CI$V1
+    normal_CI$Shape <- abs(normal_CI$V2 - theta_hat)/abs(normal_CI$V1 - theta_hat)
+    normal_CI <- normal_CI %>% select(SampleCoefficient, N, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+    print(normal_CI)
+    normal_CI = data.frame(matrix(ncol = 6, nrow = 0))
+  }
+}
+```
+
+According to our CIs we can see that all of our normal CIs have a symmetric shape. When comparing our CIs to our sample statistic we can that a larger N makes our interval more accurate by lowering the length while still containing the true population coefficient. We don't see much of an impact between different numbers of B in the Normal CI scenario, as they all remain relatively similar sized between different numbers of B. When r changed we see that our CI is centered at a different Sample Coefficient, each one being close to the population coefficient r.
+
+**2. Basic Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+n = c(50, 200) 
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+r = c(0,0.5,0.85)
+
+basic_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+
+for (i in r) {
+  for (j in n) {
+    mu <- c(0, 0)
+    sigma <- matrix(c(1, i, i, 1), 2, 2)
+    x <- mvrnorm(j, mu, sigma)
+    theta_hat <- cor(x)[2]
+    for (k in B) {
+      boot.samples = bootsampling(x, k)
+      xbar = apply(boot.samples, 3, cor)[2,]
+      basic_CI = rbind(basic_CI, cbind(2*theta_hat - quantile(xbar, probs = (1 - alpha/2)), 2*theta_hat - quantile(xbar, probs = (alpha/2))))
+    } 
+    basic_CI$B <- B
+    basic_CI$N <- rep(j, length(B))
+    basic_CI$SampleCoefficient <- rep(theta_hat, length(B))
+    basic_CI$Length <- basic_CI$V2 - basic_CI$V1
+    basic_CI$Shape <- abs(basic_CI$V2 - theta_hat)/abs(basic_CI$V1 - theta_hat)
+    basic_CI <- basic_CI %>% select(SampleCoefficient, N, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+    print.data.frame(basic_CI, row.names = FALSE)
+    basic_CI = data.frame(matrix(ncol = 6, nrow = 0))
+  }
+}
+```
+
+When comparing our CIs to our sample statistic we can that a larger N makes our interval more accurate by lowering the length while still containing the true population coefficient. Additionally, an increase in N seems to make our shape more symmetric. We don't see much of an impact between different numbers of B in the Normal CI scenario, as they all remain relatively similar sized between different numbers of B. When r changed we see that our CI is centered at a different Sample Coefficient, each one being close to the population coefficient r.
+
+**3. Percentile Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+n = c(50, 200) 
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+r = c(0,0.5,0.85)
+
+percentile_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+
+for (i in r) {
+  for (j in n) {
+    mu <- c(0, 0)
+    sigma <- matrix(c(1, i, i, 1), 2, 2)
+    x <- mvrnorm(j, mu, sigma)
+    for (k in B) {
+      boot.samples = bootsampling(x, k)
+      xbar = apply(boot.samples, 3, cor)[2,]
+      percentile_CI = rbind(percentile_CI, cbind(quantile(xbar, probs = alpha/2), quantile(xbar, probs = (1 - (alpha/2)))))
+    } 
+    percentile_CI$B <- B
+    percentile_CI$N <- rep(j, length(B))
+    percentile_CI$SampleCoefficient <- rep(cor(x)[2], length(B))
+    percentile_CI$Length <- percentile_CI$V2 - percentile_CI$V1
+    percentile_CI$Shape <- abs(percentile_CI$V2 - theta_hat)/abs(percentile_CI$V1 - theta_hat)
+    percentile_CI <- percentile_CI %>% select(SampleCoefficient, N, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+    print.data.frame(percentile_CI, row.names = FALSE)
+    percentile_CI = data.frame(matrix(ncol = 6, nrow = 0))
+  }
+}
+```
+
+
+When comparing our CIs to our sample statistic we can that a larger N makes our interval more accurate by lowering the length while still containing the true population coefficient. Additionally, an increase in N seems to make our shape more symmetric. We don't see much of an impact between different numbers of B in the Normal CI scenario, as they all remain relatively similar sized between different numbers of B. When r changed we see that our CI is centered at a different Sample Coefficient, each one being close to the population coefficient r. We also see that a high r may attribute to improving the shape of our CIs while also lowering our length.
+
+
+**4. Bootstrap-t (Studentized) Bootstrap CI**
+
+
+```{r}
+set.seed(405568250)
+
+n = c(50, 200) 
+B = c(200, 500, 1000, 2500) 
+r = c(0,0.5,0.85)
+
+studentized_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+
+for (i in r) {
+  for (j in n) {
+    mu <- c(0, 0)
+    sigma <- matrix(c(1, i, i, 1), 2, 2)
+    x <- mvrnorm(j, mu, sigma)
+    theta_hat <- cor(x)[2]
+    for (k in B) {
+      boot.samples <- bootsampling(x, k)
+      theta_b = apply(boot.samples, 3, cor)[2,]
+      boot.samples.SE = rep(0, dim(boot.samples)[3])
+      se <- sd(theta_b)
+      for (l in 1:dim(boot.samples)[3]) {
+        iterated.samples <- bootsampling(boot.samples[,,l], 100)
+        theta_l <- apply(iterated.samples, 3, cor)[2,]
+        boot.samples.SE[l] <- sd(theta_l)
+      }
+      t_b <- (theta_b - theta_hat)/boot.samples.SE
+      qval = quantile(t_b, probs = c(alpha/2, 1 - alpha/2)) 
+      studentized_CI = rbind(studentized_CI, cbind(theta_hat - qval[2]*se, theta_hat - qval[1]*se))
+    } 
+    studentized_CI$B <- B
+    studentized_CI$N <- rep(j, length(B))
+    studentized_CI$SampleCoefficient <- rep(theta_hat, length(B))
+    studentized_CI$Length <- studentized_CI$V2 - studentized_CI$V1
+    studentized_CI$Shape <- abs(studentized_CI$V2 - theta_hat)/abs(studentized_CI$V1 - theta_hat)
+    studentized_CI <- studentized_CI %>% select(SampleCoefficient, N, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+    print.data.frame(studentized_CI, row.names =  FALSE)
+    studentized_CI = data.frame(matrix(ncol = 4, nrow = 0))
+  }
+}
+```
+
+
+When comparing our CIs to our sample statistic we can that a larger N makes our interval more accurate by lowering the length while still containing the true population coefficient. Additionally, an increase in N seems to make our shape more symmetric. We don't see much of an impact between different numbers of B in the Normal CI scenario, as they all remain relatively similar sized between different numbers of B. When r changed we see that our CI is centered at a different Sample Coefficient, each one being close to the population coefficient r. For out studentized CI, we don't see many effects of r on our shape yet we do still see r lowering length and improving accuracy as it increases.
+
+
+## Problem 2:
+
+The data set “cats” can be obtain through the following R code:
+
+```{r}
+library(MASS)
+library(tidyverse)
+data(cats)
+summary(cats)
+```
+
+It contains the body weight (Bwt) in kilograms and the (Hwt) in grams of 47 female and 97 male cats.
+
+### Part (a): Construct the following bootstrap CI for the difference of the body weight means
+between female and male cats.
+
+Calculate the length and the shape of each type of Bootstrap CI and report them as well.
+
+Discuss how you selected the number of bootstrap replicates B and comment on the results
+
+**1. Normal Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+female_weight <- cats$Bwt[cats$Sex == "F"]
+male_weight <- cats$Bwt[cats$Sex == "M"]
+
+mean_diff_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+theta_hat <- mean(male_weight) - mean(female_weight)
+
+B <- c(200, 1000, 5000, 10000)
+
+for (i in B) {
+  boot_samples_male <- bootsampling(male_weight, i)
+  boot_samples_female <- bootsampling(female_weight, i)
+  mean_diff <- apply(boot_samples_male, 2, mean) - apply(boot_samples_female, 2, mean)
+  se <- sd(mean_diff)
+  mean_diff_CI = rbind(mean_diff_CI, cbind(theta_hat - zval*se, theta_hat + zval*se)) 
+}
+mean_diff_CI$B <- B
+mean_diff_CI$SampleStatistic <- rep(theta_hat, length(B))
+mean_diff_CI$Length <- mean_diff_CI$V2 - mean_diff_CI$V1
+mean_diff_CI$Shape <- abs(mean_diff_CI$V2 - theta_hat)/abs(mean_diff_CI$V1 - theta_hat)
+mean_diff_CI <- mean_diff_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+mean_diff_CI
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+**2. Basic Bootstrap CI**
+
+
+```{r}
+set.seed(405568250)
+
+mean_diff_basic_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+theta_hat <- mean(male_weight) - mean(female_weight)
+
+
+B <- c(200, 1000, 5000, 10000)
+
+for (i in B) {
+  boot_samples_male <- bootsampling(male_weight, i)
+  boot_samples_female <- bootsampling(female_weight, i)
+  mean_diff <- apply(boot_samples_male, 2, mean) - apply(boot_samples_female, 2, mean)
+  se <- sd(mean_diff)
+  mean_diff_basic_CI = rbind(mean_diff_basic_CI, cbind(2*theta_hat - quantile(mean_diff, probs = (1 - alpha/2)), 2*theta_hat - quantile(mean_diff, probs = (alpha/2))))
+}
+mean_diff_basic_CI$B <- B
+mean_diff_basic_CI$SampleStatistic <- rep(theta_hat, length(B))
+mean_diff_basic_CI$Length <- mean_diff_basic_CI$V2 - mean_diff_basic_CI$V1
+mean_diff_basic_CI$Shape <- abs(mean_diff_basic_CI$V2 - theta_hat)/abs(mean_diff_basic_CI$V1 - theta_hat)
+mean_diff_basic_CI <- mean_diff_basic_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(mean_diff_basic_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shapes are relatively symmetric. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+**3. Percentile Bootstrap CI**
+
+
+```{r}
+set.seed(405568250)
+
+mean_diff_percentile_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+theta_hat <- mean(male_weight) - mean(female_weight)
+
+
+B <- c(200, 1000, 5000, 10000)
+
+
+for (i in B) {
+  boot_samples_male <- bootsampling(male_weight, i)
+  boot_samples_female <- bootsampling(female_weight, i)
+  mean_diff <- apply(boot_samples_male, 2, mean) - apply(boot_samples_female, 2, mean)
+  mean_diff_percentile_CI = rbind(mean_diff_percentile_CI, cbind(quantile(mean_diff, probs = alpha/2), quantile(mean_diff, probs = (1 - (alpha/2)))))
+}
+mean_diff_percentile_CI$B <- B
+mean_diff_percentile_CI$SampleStatistic <- rep(theta_hat, length(B))
+mean_diff_percentile_CI$Length <- mean_diff_percentile_CI$V2 - mean_diff_percentile_CI$V1
+mean_diff_percentile_CI$Shape <- abs(mean_diff_percentile_CI$V2 - theta_hat)/abs(mean_diff_percentile_CI$V1 - theta_hat)
+mean_diff_percentile_CI <- mean_diff_percentile_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(mean_diff_percentile_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shapes are relatively symmetric. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+**4. Bootstrap-t (Studentized) Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+mean_diff_t_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+theta_hat <- mean(male_weight) - mean(female_weight)
+
+B <- c(200, 1000, 2500, 5000)
+
+for (i in B) {
+  boot_samples_male <- bootsampling(male_weight, i)
+  boot_samples_female <- bootsampling(female_weight, i)
+  mean_diff <- apply(boot_samples_male, 2, mean) - apply(boot_samples_female, 2, mean)
+  se <- sd(mean_diff)
+  boot.samples.SE = rep(0, dim(boot_samples_male)[2])
+  for (l in 1:dim(boot_samples_male)[2]) {
+        iterated.samples.male <- bootsampling(boot_samples_male[,l], 100)
+        iterated.samples.female <- bootsampling(boot_samples_female[,l], 100)
+        theta_l <- apply(iterated.samples.male, 2, mean) - apply(iterated.samples.female, 2, mean)
+        boot.samples.SE[l] <- sd(theta_l)
+  }
+  t <- (mean_diff - theta_hat)/boot.samples.SE
+  qval = quantile(t, probs = c(alpha/2, 1 - alpha/2)) 
+  mean_diff_t_CI = rbind(mean_diff_t_CI, cbind(theta_hat - qval[2]*se, theta_hat - qval[1]*se))
+}
+mean_diff_t_CI$B <- B
+mean_diff_t_CI$SampleStatistic <- rep(theta_hat, length(B))
+mean_diff_t_CI$Length <- mean_diff_t_CI$V2 - mean_diff_t_CI$V1
+mean_diff_t_CI$Shape <- abs(mean_diff_t_CI$V2 - theta_hat)/abs(mean_diff_t_CI$V1 - theta_hat)
+mean_diff_t_CI <- mean_diff_t_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(mean_diff_t_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shapes and length of CI have stayed relatively symmetric. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+### Part (b): Using your code from Problem 1 above to construct the following bootstrap CI for the correlation coefficient between the body weight and the heart weight of female cats.
+
+Calculate their length and their shape and report those as well for each type of bootstrap CI.
+
+Discuss how you selected the number of bootstrap replicates B and comment on the results.
+
+**1. Normal Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+female_cats <- cats %>% filter(Sex == 'F') %>% select(Bwt, Hwt) %>% data.matrix()
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+female_normal_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+theta_hat <- cor(female_cats)[2]
+
+for (k in B) {
+  boot.samples.female = bootsampling(female_cats, k)
+  sample_stats = apply(boot.samples.female, 3, cor)[2,]
+  se <- sd(sample_stats)
+  female_normal_CI = rbind(female_normal_CI, cbind(theta_hat - zval*se, theta_hat + zval*se)) 
+} 
+female_normal_CI$B <- B
+female_normal_CI$SampleStatistic <- rep(theta_hat, length(B))
+female_normal_CI$Length <- female_normal_CI$V2 - female_normal_CI$V1
+female_normal_CI$Shape <- abs(female_normal_CI$V2 - theta_hat)/abs(female_normal_CI$V1 - theta_hat)
+female_normal_CI <- female_normal_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(female_normal_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is symmetric as expected.These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+**2. Basic Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+female_basic_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+theta_hat <- cor(female_cats)[2]
+
+for (k in B) {
+  boot.samples.female = bootsampling(female_cats, k)
+  sample_stats = apply(boot.samples.female, 3, cor)[2,]
+  se <- sd(sample_stats)
+  female_basic_CI = rbind(female_basic_CI, cbind(2*theta_hat - quantile(sample_stats, probs = (1 - alpha/2)), 2*theta_hat - quantile(sample_stats, probs = (alpha/2)))) 
+} 
+female_basic_CI$B <- B
+female_basic_CI$SampleStatistic <- rep(theta_hat, length(B))
+female_basic_CI$Length <- female_basic_CI$V2 - female_basic_CI$V1
+female_basic_CI$Shape <- abs(female_basic_CI$V2 - theta_hat)/abs(female_basic_CI$V1 - theta_hat)
+female_basic_CI <- female_basic_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(female_basic_CI, row.names = FALSE)
+```
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is slightly asymmetric with a larger range of values being between our sample statistic and UB. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+**3. Percentile Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+female_percentile_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+theta_hat <- cor(female_cats)[2]
+
+for (k in B) {
+  boot.samples.female = bootsampling(female_cats, k)
+  sample_stats = apply(boot.samples.female, 3, cor)[2,]
+  female_percentile_CI = rbind(female_percentile_CI, cbind(quantile(sample_stats, probs = alpha/2), quantile(sample_stats, probs = (1 - (alpha/2))))) 
+} 
+female_percentile_CI$B <- B
+female_percentile_CI$SampleStatistic <- rep(theta_hat, length(B))
+female_percentile_CI$Length <- female_percentile_CI$V2 - female_percentile_CI$V1
+female_percentile_CI$Shape <- abs(female_percentile_CI$V2 - theta_hat)/abs(female_percentile_CI$V1 - theta_hat)
+female_percentile_CI <- female_percentile_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(female_percentile_CI, row.names = FALSE)
+```
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is now slightly asymmetric with a larger range of values being between our sample statistic and LB along with a larger degree of asymmetry. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+**4. Bootstrap-t (Studentized) Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+B = c(200, 500, 1000, 2500) 
+female_studentized_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+theta_hat <- cor(female_cats)[2]
+
+for (k in B) {
+  boot.samples.female <- bootsampling(female_cats, k)
+  theta_b = apply(boot.samples.female, 3, cor)[2,]
+  boot.samples.SE = rep(0, dim(boot.samples.female)[3])
+  se <- sd(theta_b)
+  for (l in 1:dim(boot.samples.female)[3]) {
+    iterated.samples <- bootsampling(boot.samples.female[,,l], 100)
+    theta_l <- apply(iterated.samples, 3, cor)[2,]
+    boot.samples.SE[l] <- sd(theta_l)
+  }
+  t_b <- (theta_b - theta_hat)/boot.samples.SE
+  qval = quantile(t_b, probs = c(alpha/2, 1 - alpha/2)) 
+  female_studentized_CI = rbind(female_studentized_CI, cbind(theta_hat - qval[2]*se, theta_hat - qval[1]*se))
+} 
+female_studentized_CI$B <- B
+female_studentized_CI$SampleStatistic <- rep(theta_hat, length(B))
+female_studentized_CI$Length <- female_studentized_CI$V2 - female_studentized_CI$V1
+female_studentized_CI$Shape <- abs(female_studentized_CI$V2 - theta_hat)/abs(female_studentized_CI$V1 - theta_hat)
+female_studentized_CI <- female_studentized_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(female_studentized_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is now slightly asymmetric with a larger range of values being between our sample statistic and LB. We see a slightly larger CI size as well on average. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+### Part (c): Using your code from Problem 1 above to construct the following bootstrap CI for the correlation coefficient between the body weight and the heart weight of male cats.
+
+Calculate their length and their shape and report those as well for each type of
+bootstrap CI.
+
+Discuss how you selected the number of bootstrap replicates B and comment on
+the results.
+
+**1. Normal Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+male_cats <- cats %>% filter(Sex == 'M') %>% select(Bwt, Hwt) %>% data.matrix()
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+male_normal_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+theta_hat <- cor(male_cats)[2]
+
+for (k in B) {
+  boot.samples.male = bootsampling(male_cats, k)
+  sample_stats = apply(boot.samples.male, 3, cor)[2,]
+  se <- sd(sample_stats)
+  male_normal_CI = rbind(male_normal_CI, cbind(theta_hat - zval*se, theta_hat + zval*se)) 
+} 
+male_normal_CI$B <- B
+male_normal_CI$SampleStatistic <- rep(theta_hat, length(B))
+male_normal_CI$Length <- male_normal_CI$V2 - male_normal_CI$V1
+male_normal_CI$Shape <- abs(male_normal_CI$V2 - theta_hat)/abs(male_normal_CI$V1 - theta_hat)
+male_normal_CI <- male_normal_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(male_normal_CI, row.names = FALSE)
+```
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is symmetric as expected.These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+**2. Basic Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+male_basic_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+theta_hat <- cor(male_cats)[2]
+
+for (k in B) {
+  boot.samples.male = bootsampling(male_cats, k)
+  sample_stats = apply(boot.samples.male, 3, cor)[2,]
+  se <- sd(sample_stats)
+  male_basic_CI = rbind(male_basic_CI, cbind(2*theta_hat - quantile(sample_stats, probs = (1 - alpha/2)), 2*theta_hat - quantile(sample_stats, probs = (alpha/2)))) 
+} 
+male_basic_CI$B <- B
+male_basic_CI$SampleStatistic <- rep(theta_hat, length(B))
+male_basic_CI$Length <- male_basic_CI$V2 - male_basic_CI$V1
+male_basic_CI$Shape <- abs(male_basic_CI$V2 - theta_hat)/abs(male_basic_CI$V1 - theta_hat)
+male_basic_CI <- male_basic_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(male_basic_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is slightly asymmetric with a larger range of values being between our sample statistic and UB. In general, the length of our male CI seem to be smaller than the female ones. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+**3. Percentile Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+B = c(200, 500, 1000, 2000, 5000, 10000) 
+male_percentile_CI = data.frame(matrix(ncol = 6, nrow = 0))
+alpha = 0.05
+theta_hat <- cor(male_cats)[2]
+
+for (k in B) {
+  boot.samples.male = bootsampling(male_cats, k)
+  sample_stats = apply(boot.samples.male, 3, cor)[2,]
+  male_percentile_CI = rbind(male_percentile_CI, cbind(quantile(sample_stats, probs = alpha/2), quantile(sample_stats, probs = (1 - (alpha/2))))) 
+} 
+male_percentile_CI$B <- B
+male_percentile_CI$SampleStatistic <- rep(theta_hat, length(B))
+male_percentile_CI$Length <- male_percentile_CI$V2 - male_percentile_CI$V1
+male_percentile_CI$Shape <- abs(male_percentile_CI$V2 - theta_hat)/abs(male_percentile_CI$V1 - theta_hat)
+male_percentile_CI <- male_percentile_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(male_percentile_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is now slightly asymmetric with a larger range of values being between our sample statistic and LB along with a larger degree of asymmetry. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.
+
+
+**4. Bootstrap-t (Studentized) Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+
+B = c(200, 500, 1000, 2500) 
+male_studentized_CI = data.frame(matrix(ncol = 4, nrow = 0))
+alpha = 0.05
+theta_hat <- cor(male_cats)[2]
+
+for (k in B) {
+  boot.samples.male <- bootsampling(male_cats, k)
+  theta_b = apply(boot.samples.male, 3, cor)[2,]
+  boot.samples.SE = rep(0, dim(boot.samples.male)[3])
+  se <- sd(theta_b)
+  for (l in 1:dim(boot.samples.male)[3]) {
+    iterated.samples <- bootsampling(boot.samples.male[,,l], 100)
+    theta_l <- apply(iterated.samples, 3, cor)[2,]
+    boot.samples.SE[l] <- sd(theta_l)
+  }
+  t_b <- (theta_b - theta_hat)/boot.samples.SE
+  qval = quantile(t_b, probs = c(alpha/2, 1 - alpha/2)) 
+  male_studentized_CI = rbind(male_studentized_CI, cbind(theta_hat - qval[2]*se, theta_hat - qval[1]*se))
+} 
+male_studentized_CI$B <- B
+male_studentized_CI$SampleStatistic <- rep(theta_hat, length(B))
+male_studentized_CI$Length <- male_studentized_CI$V2 - male_studentized_CI$V1
+male_studentized_CI$Shape <- abs(male_studentized_CI$V2 - theta_hat)/abs(male_studentized_CI$V1 - theta_hat)
+male_studentized_CI <- male_studentized_CI %>% select(SampleStatistic, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+print.data.frame(male_studentized_CI, row.names = FALSE)
+```
+
+
+When comparing our CIs to our sample statistic we can see that our CIs are all relatively stable and that an increase in B does not greatly change our intervals. Our shape is now even more asymmetric with a larger range of values being between our sample statistic and LB. These values of B were chosen based on samples from lecture where we are able to showcase a wide variety of bootstrap samples.

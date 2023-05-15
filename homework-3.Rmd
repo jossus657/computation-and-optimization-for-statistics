@@ -1,0 +1,585 @@
+---
+title: "STATS 102B HW 3"
+author: "Joshua Susanto"
+date: "2023-04-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Problem 1
+
+The data set “cars” can be obtained through the following R code:
+
+```{r}
+library(MASS)
+data("cars")
+summary(cars)
+```
+
+
+It contains 50 observations for the following two variables: the speed of cars and the
+distances taken to stop. Note that the data were recorded in the 1920s!!
+
+We consider the following simple linear regression model:
+
+$$y_i = \beta_0 + \beta_1x_i + \epsilon_i,\;i = 1, ... , 50$$
+
+where x = speed and y = breaking distance
+
+### Part (a):
+
+Use the parametric bootstrap to construct the following bootstrap CIs for the
+intercept β1 and the slope β1, at level α = 0.05.
+
+Calculate the length and the shape of each type of Bootstrap CI and report them as well.
+
+Discuss how you selected the number of bootstrap replicates B and comment on the results.
+
+```{r}
+bootsampling <- function(x, boot.replicates = B) {
+  x = as.matrix(x)
+  nx = nrow(x)
+  bootsamples = replicate(boot.replicates, x[sample.int(nx, replace = TRUE), ])
+}
+
+betahat = function(y,x) {
+  lm(y~x)$coefficients
+}
+
+boot.stats =  function(boot.sample,myfun,...){
+  if(is.matrix(boot.sample)){
+    theta = apply(boot.sample,2,myfun,...)
+  } else {
+    theta = apply(boot.sample,3,myfun,...)
+  }
+  if(is.matrix(theta)){
+    return(list(theta=theta,cov=cov(t(theta))))
+  } else{
+    return(list(theta=theta,se=sd(theta)))
+  } 
+}
+```
+
+
+**1. Normal Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+model1 = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+
+normal.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+normal.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(model1$residuals,B[j])
+  y.bootsamples = matrix(yhat, length(cars$speed), ncol(boot.samples)) + boot.samples
+
+  
+  model1.boot = boot.stats(y.bootsamples,betahat,x = cars$speed)
+  
+  normal.CI.int = rbind(normal.CI.int,cbind(model1.int-zval*sqrt(model1.boot$cov[1,1]),model1.int+zval*sqrt(model1.boot$cov[1,1])))
+  normal.CI.slope=rbind(normal.CI.slope,cbind(model1.slope-zval*sqrt(model1.boot$cov[2,2]),model1.slope+zval*sqrt(model1.boot$cov[2,2])))
+}
+normal.CI.int$B <- B
+normal.CI.slope$B <- B
+normal.CI.int$SampleCoefficient <- model1.int
+normal.CI.slope$SampleCoefficient <- model1.slope
+normal.CI.int$Length <- normal.CI.int$V2 - normal.CI.int$V1
+normal.CI.slope$Length <- normal.CI.slope$V2 - normal.CI.slope$V1
+normal.CI.int$Shape <- abs(normal.CI.int$V2 - model1.int)/abs(normal.CI.int$V1 - model1.int)
+normal.CI.slope$Shape <- abs(normal.CI.slope$V2 - model1.slope)/abs(normal.CI.slope$V1 - model1.slope)
+normal.CI.int <- normal.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+normal.CI.slope <- normal.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+normal.p.int.length <- normal.CI.int$Length
+normal.p.slope.length <- normal.CI.slope$Length
+normal.p.int.shape <- normal.CI.int$Shape
+normal.p.slope.shape <- normal.CI.slope$Shape
+normal.CI.int
+normal.CI.slope
+```
+
+**2. Basic Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+model = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+
+basic.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+basic.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(model1$residuals,B[j])
+  y.bootsamples = matrix(yhat, length(cars$speed), ncol(boot.samples)) + boot.samples
+
+  
+  model1.boot = boot.stats(y.bootsamples,betahat,x = cars$speed)
+  
+  basic.CI.int = rbind(basic.CI.int,cbind(2*model1.int-quantile(model1.boot$theta[1,], probs = (1-alpha/2)), 2*model1.int-quantile(model1.boot$theta[1,], probs = (alpha/2))))  
+  basic.CI.slope = rbind(basic.CI.slope,cbind(2*model1.slope-quantile(model1.boot$theta[2,], probs = (1-alpha/2)), 2*model1.slope-quantile(model1.boot$theta[2,], probs = (alpha/2))))
+}
+basic.CI.int$B <- B
+basic.CI.slope$B <- B
+basic.CI.int$SampleCoefficient <- model1.int
+basic.CI.slope$SampleCoefficient <- model1.slope
+basic.CI.int$Length <- basic.CI.int$V2 - basic.CI.int$V1
+basic.CI.slope$Length <- basic.CI.slope$V2 - basic.CI.slope$V1
+basic.CI.int$Shape <- abs(basic.CI.int$V2 - model1.int)/abs(basic.CI.int$V1 - model1.int)
+basic.CI.slope$Shape <- abs(basic.CI.slope$V2 - model1.slope)/abs(basic.CI.slope$V1 - model1.slope)
+basic.CI.int <- basic.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+basic.CI.slope <- basic.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+basic.p.int.length <- basic.CI.int$Length
+basic.p.slope.length <- basic.CI.slope$Length
+basic.p.int.shape <- basic.CI.int$Shape
+basic.p.slope.shape <- basic.CI.slope$Shape
+basic.CI.int
+basic.CI.slope
+```
+
+**3. Percentile Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+model = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+
+percentile.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+percentile.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(model1$residuals,B[j])
+  y.bootsamples = matrix(yhat, length(cars$speed), ncol(boot.samples)) + boot.samples
+
+  
+  model1.boot = boot.stats(y.bootsamples,betahat,x = cars$speed)
+  
+  percentile.CI.int = rbind(percentile.CI.int,cbind(quantile(model1.boot$theta[1,], probs = (alpha/2)), quantile(model1.boot$theta[1,], probs = (1-alpha/2))))
+  percentile.CI.slope = rbind(percentile.CI.slope,cbind(quantile(model1.boot$theta[2,], probs = (alpha/2)), quantile(model1.boot$theta[2,], probs = (1-alpha/2))))
+}
+percentile.CI.int$B <- B
+percentile.CI.slope$B <- B
+percentile.CI.int$SampleCoefficient <- model1.int
+percentile.CI.slope$SampleCoefficient <- model1.slope
+percentile.CI.int$Length <- percentile.CI.int$V2 - percentile.CI.int$V1
+percentile.CI.slope$Length <- percentile.CI.slope$V2 - percentile.CI.slope$V1
+percentile.CI.int$Shape <- abs(percentile.CI.int$V2 - model1.int)/abs(percentile.CI.int$V1 - model1.int)
+percentile.CI.slope$Shape <- abs(percentile.CI.slope$V2 - model1.slope)/abs(percentile.CI.slope$V1 - model1.slope)
+percentile.CI.int <- percentile.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+percentile.CI.slope <- percentile.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+percentile.p.int.length <- percentile.CI.int$Length
+percentile.p.slope.length <- percentile.CI.slope$Length
+percentile.p.int.shape <- percentile.CI.int$Shape
+percentile.p.slope.shape <- percentile.CI.slope$Shape
+percentile.CI.int
+percentile.CI.slope
+```
+
+**4. Bias corrected Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+model = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+
+BC.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+BC.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(model1$residuals,B[j])
+  y.bootsamples = matrix(yhat, length(cars$speed), ncol(boot.samples)) + boot.samples
+
+  
+  model1.boot = boot.stats(y.bootsamples,betahat,x = cars$speed)
+  
+  z0int = qnorm(sum(model1.boot$theta[1,] < model1.int)/B[j])
+  z0slope = qnorm(sum(model1.boot$theta[2,] < model1.slope)/B[j])
+  A1int= pnorm(2*z0int+qnorm(alpha/2))
+  A2int= pnorm(2*z0int+qnorm(1-alpha/2))
+  A1slope= pnorm(2*z0slope+qnorm(alpha/2))
+  A2slope= pnorm(2*z0slope+qnorm(1-alpha/2))
+
+  BC.CI.int = rbind(BC.CI.int, cbind(quantile(model1.boot$theta[1,], probs = (A1int)), quantile(model1.boot$theta[1,], probs = (A2int))))
+  BC.CI.slope=rbind(BC.CI.slope, cbind(quantile(model1.boot$theta[2,], probs = (A1slope)), quantile(model1.boot$theta[2,], probs = (A2slope))))
+}
+BC.CI.int$B <- B
+BC.CI.slope$B <- B
+BC.CI.int$SampleCoefficient <- model1.int
+BC.CI.slope$SampleCoefficient <- model1.slope
+BC.CI.int$Length <- BC.CI.int$V2 - BC.CI.int$V1
+BC.CI.slope$Length <- BC.CI.slope$V2 - BC.CI.slope$V1
+BC.CI.int$Shape <- abs(BC.CI.int$V2 - model1.int)/abs(BC.CI.int$V1 - model1.int)
+BC.CI.slope$Shape <- abs(BC.CI.slope$V2 - model1.slope)/abs(BC.CI.slope$V1 - model1.slope)
+BC.CI.int <- BC.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+BC.CI.slope <- BC.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+BC.p.int.length <- BC.CI.int$Length
+BC.p.slope.length <- BC.CI.slope$Length
+BC.p.int.shape <- BC.CI.int$Shape
+BC.p.slope.shape <- BC.CI.slope$Shape
+BC.CI.int
+BC.CI.slope
+```
+
+The number of bootstrap replications were chose to highlight a wide array of values and see if the amount of bootstraps affects our confidence intervals in any way. In terms of normal CI, we see that the value of B does not have a large impact on shape or length. Within our basic, bias corrected, and percentile CI, we see a larger value of B may stabilize length. 
+
+
+### Part (b):
+
+Use the nonparametric bootstrap to construct the following bootstrap CIs the intercept β1 and the slope β1, at level α = 0.05.
+
+
+Calculate the length and the shape of each type of Bootstrap CI and report them as well.
+
+Discuss how you selected the number of bootstrap replicates B and comment on the results.
+
+
+```{r}
+np_betahat = function(z) {
+  lm(z[,1] ~ z[,2])$coefficients
+  }
+```
+
+
+**1. Normal Bootstrap CI**
+
+```{r}
+set.seed(405568250) 
+B = c(200,500,1000,2000,5000,10000)
+
+x = cars$speed
+y = cars$dist
+
+z.data = cbind(y,x)
+
+model1 = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+
+alpha = 0.05
+zval = qnorm(p = alpha/2, lower.tail = FALSE)
+
+
+normal.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+normal.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(z.data,B[j])
+  model1.boot = boot.stats(boot.samples, np_betahat)
+  
+  normal.CI.int = rbind(normal.CI.int, cbind(model1.int-zval*sqrt(model1.boot$cov[1,1]), model1.int+zval*sqrt(model1.boot$cov[1,1])))
+  normal.CI.slope = rbind(normal.CI.slope, cbind(model1.slope-zval*sqrt(model1.boot$cov[2,2]), model1.slope+zval*sqrt(model1.boot$cov[2,2])))
+}
+normal.CI.int$B <- B
+normal.CI.slope$B <- B
+normal.CI.int$SampleCoefficient <- model1.int
+normal.CI.slope$SampleCoefficient <- model1.slope
+normal.CI.int$Length <- normal.CI.int$V2 - normal.CI.int$V1
+normal.CI.slope$Length <- normal.CI.slope$V2 - normal.CI.slope$V1
+normal.CI.int$Shape <- abs(normal.CI.int$V2 - model1.int)/abs(normal.CI.int$V1 - model1.int)
+normal.CI.slope$Shape <- abs(normal.CI.slope$V2 - model1.slope)/abs(normal.CI.slope$V1 - model1.slope)
+normal.CI.int <- normal.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+normal.CI.slope <- normal.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+normal.np.int.length <- normal.CI.int$Length
+normal.np.slope.length <- normal.CI.slope$Length
+normal.np.int.shape <- normal.CI.int$Shape
+normal.np.slope.shape <- normal.CI.slope$Shape
+normal.CI.int
+normal.CI.slope
+```
+
+**2. Basic Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+x = cars$speed
+y = cars$dist
+
+z.data = cbind(y,x)
+
+model = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+
+basic.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+basic.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(z.data,B[j])
+  model1.boot = boot.stats(boot.samples, np_betahat)
+  
+  basic.CI.int = rbind(basic.CI.int, cbind(2*model1.int-quantile(model1.boot$theta[1,], probs = (1-alpha/2)), 2*model1.int-quantile(model1.boot$theta[1,], probs = (alpha/2))))  
+  basic.CI.slope = rbind(basic.CI.slope,cbind(2*model1.slope-quantile(model1.boot$theta[2,], probs = (1-alpha/2)), 2*model1.slope-quantile(model1.boot$theta[2,], probs = (alpha/2))))
+}
+basic.CI.int$B <- B
+basic.CI.slope$B <- B
+basic.CI.int$SampleCoefficient <- model1.int
+basic.CI.slope$SampleCoefficient <- model1.slope
+basic.CI.int$Length <- basic.CI.int$V2 - basic.CI.int$V1
+basic.CI.slope$Length <- basic.CI.slope$V2 - basic.CI.slope$V1
+basic.CI.int$Shape <- abs(basic.CI.int$V2 - model1.int)/abs(basic.CI.int$V1 - model1.int)
+basic.CI.slope$Shape <- abs(basic.CI.slope$V2 - model1.slope)/abs(basic.CI.slope$V1 - model1.slope)
+basic.CI.int <- basic.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+basic.CI.slope <- basic.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+basic.np.int.length <- basic.CI.int$Length
+basic.np.slope.length <- basic.CI.slope$Length
+basic.np.int.shape <- basic.CI.int$Shape
+basic.np.slope.shape <- basic.CI.slope$Shape
+basic.CI.int
+basic.CI.slope
+```
+
+**3. Percentile Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+x = cars$speed
+y = cars$dist
+
+z.data = cbind(y,x)
+
+model = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+
+percentile.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+percentile.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(z.data,B[j])
+  model1.boot = boot.stats(boot.samples, np_betahat)
+  
+  percentile.CI.int = rbind(percentile.CI.int,cbind(quantile(model1.boot$theta[1,], probs = (alpha/2)), quantile(model1.boot$theta[1,], probs = (1-alpha/2))))
+  percentile.CI.slope = rbind(percentile.CI.slope,cbind(quantile(model1.boot$theta[2,], probs = (alpha/2)), quantile(model1.boot$theta[2,], probs = (1-alpha/2))))
+}
+percentile.CI.int$B <- B
+percentile.CI.slope$B <- B
+percentile.CI.int$SampleCoefficient <- model1.int
+percentile.CI.slope$SampleCoefficient <- model1.slope
+percentile.CI.int$Length <- percentile.CI.int$V2 - percentile.CI.int$V1
+percentile.CI.slope$Length <- percentile.CI.slope$V2 - percentile.CI.slope$V1
+percentile.CI.int$Shape <- abs(percentile.CI.int$V2 - model1.int)/abs(percentile.CI.int$V1 - model1.int)
+percentile.CI.slope$Shape <- abs(percentile.CI.slope$V2 - model1.slope)/abs(percentile.CI.slope$V1 - model1.slope)
+percentile.CI.int <- percentile.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+percentile.CI.slope <- percentile.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+percentile.np.int.length <- percentile.CI.int$Length
+percentile.np.slope.length <- percentile.CI.slope$Length
+percentile.np.int.shape <- percentile.CI.int$Shape
+percentile.np.slope.shape <- percentile.CI.slope$Shape
+percentile.CI.int
+percentile.CI.slope
+```
+
+**4. Bias corrected Bootstrap CI**
+
+```{r}
+set.seed(405568250)
+B = c(200,500,1000,2000,5000,10000)
+
+x = cars$speed
+y = cars$dist
+
+z.data = cbind(y,x)
+
+model = lm(dist~speed, data = cars)
+model1.summary = summary(model1)
+
+
+model1.int = model1$coefficients[1]
+model1.slope = model1$coefficients[2]
+yhat = model1$fitted.values
+
+alpha = 0.05
+
+BC.CI.int = data.frame(matrix(ncol = 3, nrow = 0))
+BC.CI.slope = data.frame(matrix(ncol = 3, nrow = 0))
+
+for (j in 1:length(B)) {
+  boot.samples = bootsampling(z.data,B[j])
+  model1.boot = boot.stats(boot.samples, np_betahat)
+  
+  z0int = qnorm(sum(model1.boot$theta[1,] < model1.int)/B[j])
+  z0slope = qnorm(sum(model1.boot$theta[2,] < model1.slope)/B[j])
+  A1int= pnorm(2*z0int+qnorm(alpha/2))
+  A2int= pnorm(2*z0int+qnorm(1-alpha/2))
+  A1slope= pnorm(2*z0slope+qnorm(alpha/2))
+  A2slope= pnorm(2*z0slope+qnorm(1-alpha/2))
+
+  BC.CI.int = rbind(BC.CI.int, cbind(quantile(model1.boot$theta[1,], probs = (A1int)), quantile(model1.boot$theta[1,], probs = (A2int))))
+  BC.CI.slope=rbind(BC.CI.slope, cbind(quantile(model1.boot$theta[2,], probs = (A1slope)), quantile(model1.boot$theta[2,], probs = (A2slope))))
+}
+BC.CI.int$B <- B
+BC.CI.slope$B <- B
+BC.CI.int$SampleCoefficient <- model1.int
+BC.CI.slope$SampleCoefficient <- model1.slope
+BC.CI.int$Length <- BC.CI.int$V2 - BC.CI.int$V1
+BC.CI.slope$Length <- BC.CI.slope$V2 - BC.CI.slope$V1
+BC.CI.int$Shape <- abs(BC.CI.int$V2 - model1.int)/abs(BC.CI.int$V1 - model1.int)
+BC.CI.slope$Shape <- abs(BC.CI.slope$V2 - model1.slope)/abs(BC.CI.slope$V1 - model1.slope)
+BC.CI.int <- BC.CI.int %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+BC.CI.slope <- BC.CI.slope %>% dplyr::select(SampleCoefficient, B, V1, V2, Length, Shape) %>% rename(Lower = V1) %>% rename(Upper = V2)
+BC.np.int.length <- BC.CI.int$Length
+BC.np.slope.length <- BC.CI.slope$Length
+BC.np.int.shape <- BC.CI.int$Shape
+BC.np.slope.shape <- BC.CI.slope$Shape
+BC.CI.int
+BC.CI.slope
+```
+
+The number of bootstrap replications were chose to highlight a wide array of values and see if the amount of bootstraps affects our confidence intervals in any way. In terms of normal CI, we see that the value of B does not have a large impact on shape or length. This hold true for our basic and percentile CIs as well. However we do see that larger values of B may help stabilize the length of our bias corrected CI.
+
+
+### Part (c): 
+
+Compare the lengths and shapes for each type of bootstrap CI you constructed in Parts (a) and (b) and comments on the results.
+
+
+**Length**
+
+```{r}
+normal.int.diff = normal.p.int.length - normal.np.int.length
+normal.slope.diff = normal.p.slope.length - normal.np.slope.length
+
+basic.int.diff = basic.p.int.length - basic.np.int.length
+basic.slope.diff = basic.p.slope.length - basic.np.slope.length
+
+percentile.int.diff = percentile.p.int.length - percentile.np.int.length
+percentile.slope.diff = percentile.p.slope.length - percentile.np.slope.length
+
+bc.int.diff = BC.p.int.length - BC.np.int.length
+bc.slope.diff = BC.p.slope.length - BC.np.slope.length
+```
+
+```{r}
+normal.int.diff
+normal.slope.diff
+```
+
+We can see in our normal CIs that the lengths of our parametric forms are consistently larger than our non-parametric form intercepts with this trend being reversed for the slopes. 
+
+```{r}
+basic.int.diff
+basic.slope.diff
+```
+
+In terms of our basic CIs, we see that the trend is consistent with parametric being larger for intercepts and non parametric being larger for slopes.
+
+```{r}
+percentile.int.diff
+percentile.slope.diff
+```
+
+In terms of our percentile CIs, we see that the trend is consistent with parametric being larger for intercepts and non parametric being larger for slopes. We actually see that our differences for percentile and basic CIs are the same
+
+```{r}
+bc.int.diff
+bc.slope.diff
+```
+
+In terms of our bias corrected CIs, we see that the trend is consistent with parametric being larger for intercepts and non parametric being larger for slopes.
+
+**Shape**
+
+```{r}
+normal.int.diff.s = normal.p.int.shape - normal.np.int.shape
+normal.slope.diff.s = normal.p.slope.shape - normal.np.slope.shape
+
+basic.int.diff.s = basic.p.int.shape - basic.np.int.shape
+basic.slope.diff.s = basic.p.slope.shape - basic.np.slope.shape
+
+percentile.int.diff.s = percentile.p.int.shape - percentile.np.int.shape
+percentile.slope.diff.s = percentile.p.slope.shape - percentile.np.slope.shape
+
+bc.int.diff.s = BC.p.int.shape - BC.np.int.shape
+bc.slope.diff.s = BC.p.slope.shape - BC.np.slope.shape
+```
+
+```{r}
+normal.int.diff.s
+normal.slope.diff.s
+```
+
+As we expect, since normal CIs are symmetric, there are no shape differences in the intervals for parametric vs non-parametric.
+
+```{r}
+basic.int.diff.s
+basic.slope.diff.s
+```
+
+In terms of our basic CIs, we actually see that the trend for length is reversed, with the non-parametric intercept having consistently more right skewed (positive) shapes than the parametric intercepts and the parametric slopes having consistently more positive shapes than the non-parametric ones.
+
+```{r}
+percentile.int.diff.s
+percentile.slope.diff.s
+```
+
+In terms of our percentile CIs, we see that the trend with length has came back with parametric being more positive for intercepts and non parametric being more positive for slopes.
+
+```{r}
+bc.int.diff.s
+bc.slope.diff.s
+```
+
+In terms of our bias corrected CIs, we see that the percentile trend is consistent with parametric being more positive for intercepts and non parametric being more positive for slopes.
