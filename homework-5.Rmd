@@ -1,0 +1,528 @@
+---
+title: "STATS 102B HW 5"
+author: "Joshua Susanto"
+date: "2023-06-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+## Problem 1:
+
+Recall the function used in Problem 1 of HW 4, $f:R^2→R$, with
+
+$$f(x) ≡ f(x_1, x_2) = 4x_1^2 + 2x_2^2 + 4x_1x_2 + 5x_1 + 2x_2$$
+
+**Part (a):** Using the provided code for gradient descent with backtracking line search and
+obtain the optimal value.
+
+```{r}
+objective.function = function(x) {
+  4*x[1]^2 + 2*x[2]^2 + 4*x[1]*x[2] + 5*x[1] + 2*x[2]
+}
+
+
+derivative = function(x) {
+  c(8*x[1]+4*x[2]+5, 4*x[2]+4*x[1]+2)
+}
+
+
+myepsilon = 0.5
+mytau = 0.9
+stepsize_0 = 1
+mytol = 0.000000001 
+mystartpoint = c(1,2) 
+
+gradientDescBT = function(obj.function, startpoint, stepsize, tau, epsilon, conv_threshold, max_iter) {
+  
+  old.point = startpoint
+  stepsize = stepsize_0
+  gradient = derivative(old.point)
+  
+  
+  while (objective.function(old.point - stepsize * gradient) > objective.function(old.point) - (epsilon * stepsize * t(gradient) %*% gradient)){
+    stepsize = tau * stepsize
+  }
+
+  
+  new.point = c(old.point[1] - stepsize*gradient[1], 
+                old.point[2] - stepsize*gradient[2])
+  
+
+  old.value.function = obj.function(new.point)
+  
+  converged = F
+  iterations = 0
+  
+  while(converged == F) {
+
+    old.point = new.point
+    gradient = derivative(old.point)
+    
+    
+    while (objective.function(old.point - stepsize * gradient) > 
+           objective.function(old.point) - (epsilon * stepsize * 
+                                    t(gradient) %*% gradient) ){
+      stepsize = tau * stepsize
+    }
+
+    new.point = c(old.point[1] - stepsize*gradient[1], 
+                  old.point[2] - stepsize*gradient[2])
+    
+    new.value.function = obj.function(new.point)
+    
+    
+    if( abs(old.value.function - new.value.function) <= conv_threshold) {
+      converged = T
+    }
+    
+    data.output = data.frame(iteration = iterations,
+                       old.value.function = old.value.function,
+                       new.value.function = new.value.function,
+                       old.point=old.point, new.point=new.point,
+                       stepsize = stepsize
+                       )
+    
+    if(exists("iters")) {
+      iters <- rbind(iters, data.output)
+    } else {
+      iters = data.output
+    }
+    
+    iterations = iterations + 1
+    old.value.function = new.value.function
+    
+    if(iterations >= max_iter) break
+  }
+  return(list(converged = converged, 
+              num_iterations = iterations, 
+              old.value.function = old.value.function,
+              new.value.function = new.value.function,
+              coefs = new.point,
+              stepsize = stepsize,
+              iters = iters))
+}
+
+
+results = gradientDescBT(objective.function, mystartpoint, stepsize_0, 
+                       mytau, myepsilon, mytol, 30000)
+
+results[1:6]
+```
+
+We find our optimal value to be (-0.7500312, 0.2500505) according to our algorithm.
+
+**Part (b):**
+
+Comment on the accuracy of the calculated minimum and compare it to the results obtained for the different choices of the constant step size used in HW 4. Also, comment on the number of iterations required based on the backtracking line search algorithm for selecting the step size, compared to the number of iterations needed for the three choices of the constant step size used in HW 4.
+
+```{r}
+objective.function = function(x) {
+            4*x[1]^2 + 2*x[2]^2 + 4*x[1]*x[2] + 5*x[1] + 2*x[2]
+    }
+
+
+derivative = function(x) {
+  c(8*x[1]+4*x[2]+5, 4*x[2]+4*x[1]+2)
+}
+
+
+mystepsize = c(0.01, 0.05, 0.1)
+mytol = c(0.0001, 0.000001, 0.00000001)
+mystartpoint = c(1,2) 
+
+gradientDesc = function(obj.function, startpoint, 
+                        stepsize, conv_threshold, max_iter) {
+  
+  old.point = startpoint
+  gradient = derivative(old.point)
+  new.point = c(old.point[1] - stepsize*gradient[1], 
+                old.point[2] - stepsize*gradient[2])
+  
+
+  old.value.function = obj.function(new.point)
+  
+  converged = F
+  iterations = 0
+  
+  while(converged == F) {
+    old.point = new.point
+  
+    gradient = derivative(old.point)
+    new.point = c(old.point[1] - stepsize*gradient[1], 
+                  old.point[2] - stepsize*gradient[2])
+    
+    new.value.function = obj.function(new.point)
+    
+    
+    if(abs(old.value.function - new.value.function) <= conv_threshold) {
+      converged = T
+    }
+    
+    data.output = data.frame(iteration = iterations,
+                       old.value.function = old.value.function,
+                       new.value.function = new.value.function,
+                       old.point=old.point, new.point=new.point
+                       )
+    
+    if(exists("iters")) {
+      iters <- rbind(iters, data.output)
+    } else {
+      iters = data.output
+    }
+    
+    iterations = iterations + 1
+    old.value.function = new.value.function
+    
+    if(iterations >= max_iter) break
+  }
+  return(list(converged = converged, 
+              num_iterations = iterations, 
+              old.value.function = old.value.function,
+              new.value.function = new.value.function,
+              coefs = new.point,
+              iters = iters))
+}
+
+
+for (i in 1:length(mytol)) {
+  for (j in 1:length(mystepsize)) {
+    results = gradientDesc(objective.function, mystartpoint, mystepsize[j], mytol[i], 30000)$coefs
+    iterations = gradientDesc(objective.function, mystartpoint, mystepsize[j], mytol[i], 30000)$num_iterations
+    cat('For tolerance =', mytol[i], 'and step size =', mystepsize[j], 'our minimum is at', results, 'and takes', iterations, 'iterations to converge', '\n')
+  }
+}
+```
+
+From the previous homework, we were able to use calculus to determine that the true minimum is at the point (-0.75, 0.25). Comparing our backtracking line search to our constant step size algorithms we see that backtracking line search is in general much more accurate than our constant step size cases. However, this improvement is less drastic when performed with the same tolerance level, yet still margianally more accurate. 
+
+In the case of iterations, we see that our backtracking line search algorithm took 62 iterations to converge. Comparatively, this was outdone in three different cases of our constant step size algorithm. For the cases that also used a tolerance of 1e-08 we saw that backtracking line search algorithm took drastically less iterations than a constant step size of 0.01 and fairly less than constant step size 0.05. We see that a constant step size of 0.1 took less iterations at 48 while still being fairly accurate compared to the other step sizes, yet still not as accurate as our backtracking line search method.
+
+## Problem 2:
+
+Consider the function, $f:R^2→R$, with
+
+$$f(x) = x^4$$
+
+**Part (a):**
+
+Obtain the theoretical minimum of function f(x). Show your work (recall to argue that it is actually a minimum).
+
+First we must find the gradient or derivative of f, by power rule we get:
+
+$$\nabla{f(x)}=4x^3$$
+
+Now we must inspect for which values of $x$ make $\nabla{f(x)}=0$
+
+$$0 = 4x^3$$
+$$x = 0$$
+
+Now we must check for the validity of our second order conditions. We start by finding our hessian, or in this one dimensional case, our second derivative:
+
+$$f''(x) = 12x^2 $$
+
+Since $x^2 > 0\;\;\forall x \in R$, we know that in every case
+
+$$f''(x) = 12x^2 > 0 $$
+
+Hence we can conclude that the function is convex and that a unique global minimum exists. In this case, since x = 0 satisfies our first order condition we can conclude that our minimum is attained at (0,0)
+
+**Part (b):**
+Use the gradient descent algorithm with constant step size and with backtracking line search to calculate $\hat{x}_{min}$.
+
+```{r}
+gradientDescBT_1D = function(obj.function, startpoint, stepsize, tau, epsilon, conv_threshold, max_iter) {
+  
+  old.point = startpoint
+  stepsize = stepsize_0
+  gradient = derivative(old.point)
+  
+  
+  while (objective.function(old.point - stepsize * gradient) > objective.function(old.point) - (epsilon * stepsize * t(gradient) %*% gradient)){
+    stepsize = tau * stepsize
+  }
+
+  
+  new.point = old.point - stepsize*gradient
+  old.value.function = obj.function(new.point)
+  
+  converged = F
+  iterations = 0
+  
+  while(converged == F) {
+
+    old.point = new.point
+    gradient = derivative(old.point)
+    
+    
+    while (objective.function(old.point - stepsize * gradient) > 
+           objective.function(old.point) - (epsilon * stepsize * 
+                                    t(gradient) %*% gradient) ){
+      stepsize = tau * stepsize
+    }
+
+    new.point = old.point - stepsize*gradient
+    
+    new.value.function = obj.function(new.point)
+    
+    
+    if(abs(old.value.function - new.value.function) <= conv_threshold) {
+      converged = T
+    }
+    
+    data.output = data.frame(iteration = iterations,
+                       old.value.function = old.value.function,
+                       new.value.function = new.value.function,
+                       old.point=old.point, new.point=new.point,
+                       stepsize = stepsize
+                       )
+    
+    if(exists("iters")) {
+      iters <- rbind(iters, data.output)
+    } else {
+      iters = data.output
+    }
+    
+    iterations = iterations + 1
+    old.value.function = new.value.function
+    
+    if(iterations >= max_iter) break
+  }
+  return(list(converged = converged, 
+              num_iterations = iterations, 
+              old.value.function = old.value.function,
+              new.value.function = new.value.function,
+              coefs = new.point,
+              stepsize = stepsize,
+              iters = iters))
+}
+```
+
+
+```{r}
+gradientDesc_1D = function(obj.function, startpoint, 
+                        stepsize, conv_threshold, max_iter) {
+  
+  old.point = startpoint
+  gradient = derivative(old.point)
+  new.point = old.point - stepsize*gradient
+  
+
+  old.value.function = obj.function(new.point)
+  
+  converged = F
+  iterations = 0
+  
+  while(converged == F) {
+    old.point = new.point
+  
+    gradient = derivative(old.point)
+    new.point = old.point - stepsize*gradient
+    
+    new.value.function = obj.function(new.point)
+    
+    if(abs(old.value.function - new.value.function) <= conv_threshold) {
+      converged = T
+    }
+    
+    data.output = data.frame(iteration = iterations,
+                       old.value.function = old.value.function,
+                       new.value.function = new.value.function,
+                       old.point=old.point, new.point=new.point
+                       )
+    
+    if(exists("iters")) {
+      iters <- rbind(iters, data.output)
+    } else {
+      iters = data.output
+    }
+    
+    iterations = iterations + 1
+    old.value.function = new.value.function
+    
+    if(iterations >= max_iter) break
+  }
+  return(list(converged = converged, 
+              num_iterations = iterations, 
+              old.value.function = old.value.function,
+              new.value.function = new.value.function,
+              coefs = new.point,
+              iters = iters))
+}
+```
+
+
+```{r}
+objective.function = function(x) {
+  x^4
+}
+
+derivative = function(x) {
+  4*x^3
+}
+
+myepsilon = 0.5
+mytau = 0.9
+stepsize_0 = 1
+mytol = 0.000000001 
+mystartpoint = 2
+mystepsize = 0.01
+
+
+resultsBT = gradientDescBT_1D(objective.function, mystartpoint, stepsize_0, mytau, myepsilon, mytol, 30000)
+resultsConstant = gradientDesc_1D(objective.function, mystartpoint, mystepsize, mytol, 30000)
+
+resultsBT[1:6]
+resultsConstant[1:5]
+```
+
+
+1. For the constant step size version of gradient descent, discuss how you selected the step size used in your code.
+
+
+I selected 0.1 after trying out a few combinations. Anything much larger would diverge and anything much smaller would take way too many iterations. I found this as a good middle ground
+
+
+2. For both versions of the gradient descent algorithm, plot the value of f(xk) as a function of k the number of iterations.
+
+
+```{r}
+ggplot(data = resultsBT$iters, mapping = aes(x = iteration, y = new.value.function))+
+  geom_line() + ggtitle("New Function Value vs Iteration (Backtracking)")
+
+ggplot(data = resultsConstant$iters, mapping = aes(x = iteration, y = new.value.function))+
+  geom_line() + ggtitle("New Function Value vs Iteration (Constant)")
+```
+
+
+3. For the the gradient descent method with backtracking line search, plot the step size ηk selected at step k as a function of k. Comment on the result.
+
+
+```{r}
+ggplot(data = resultsBT$iters, mapping = aes(x = iteration, y = stepsize))+
+  geom_line() + ggtitle("Step Size vs Iteration")
+```
+
+We see that after the first backtrack line search our stepsize is never reduced again. This means that after the armijo condition was satisfied the first time, every other iteration didn't need a change. This can change if we reset the initial stepsize before every backtrack line search. 
+
+**Part (c):**
+The function f(x) has very different curvature (second derivative) in different regions of its domain. It could benefit from adding a momentum term in the gradient descent update.
+
+1. Implement the momentum adjustment in the gradient descent code with backtracking line search.
+
+```{r}
+gradientDescBT_partc = function(obj.function, startpoint, stepsize, tau, epsilon, conv_threshold, max_iter, momentum) {
+  
+  old.point = startpoint
+  stepsize = stepsize_0
+  gradient = derivative(old.point)
+  
+  
+  while (objective.function(old.point - stepsize * gradient) > objective.function(old.point) - (epsilon * stepsize * t(gradient) %*% gradient)){
+    stepsize = tau * stepsize
+  }
+
+  
+  new.point = old.point - stepsize*gradient
+  old.value.function = obj.function(new.point)
+  
+  converged = F
+  iterations = 0
+  
+  while(converged == F) {
+
+    prev.point = old.point
+    old.point = new.point
+    gradient = derivative(old.point)
+    
+    
+    while (objective.function(old.point - stepsize * gradient) > 
+           objective.function(old.point) - (epsilon * stepsize * 
+                                    t(gradient) %*% gradient) ){
+      stepsize = tau * stepsize
+    }
+
+    new.point = old.point - stepsize*gradient + momentum*(old.point - prev.point)
+    
+    new.value.function = obj.function(new.point)
+    
+    
+    if(abs(old.value.function - new.value.function) <= conv_threshold) {
+      converged = T
+    }
+    
+    data.output = data.frame(iteration = iterations,
+                       old.value.function = old.value.function,
+                       new.value.function = new.value.function,
+                       old.point=old.point, new.point=new.point,
+                       stepsize = stepsize
+                       )
+    
+    if(exists("iters")) {
+      iters <- rbind(iters, data.output)
+    } else {
+      iters = data.output
+    }
+    
+    iterations = iterations + 1
+    old.value.function = new.value.function
+    
+    if(iterations >= max_iter) break
+  }
+  return(list(converged = converged, 
+              num_iterations = iterations, 
+              old.value.function = old.value.function,
+              new.value.function = new.value.function,
+              coefs = new.point,
+              stepsize = stepsize,
+              iters = iters))
+}
+```
+
+
+```{r}
+objective.function = function(x) {
+  x^4
+}
+
+derivative = function(x) {
+  4*x^3
+}
+
+myepsilon = 0.5
+mytau = 0.9
+stepsize_0 = 1
+mytol = 0.000000001 
+mystartpoint = 2
+mystepsize = 0.01
+momentum = 0.5
+
+
+resultsmomentum = gradientDescBT_partc(objective.function, mystartpoint, stepsize_0, mytau, myepsilon, mytol, 30000, momentum)
+
+resultsmomentum[1:6]
+```
+
+2. Plot the value of f(xk) as a function of k the number of iterations.
+
+```{r}
+ggplot(data = resultsmomentum$iters, mapping = aes(x = iteration, y = new.value.function))+
+  geom_line() + ggtitle("New Function Value vs Iteration (Backtracking and Momentum)")
+```
+
+
+3. Plot the step size ηk selected at step k as a function of k. Comment on the result.
+
+```{r}
+ggplot(data = resultsmomentum$iters, mapping = aes(x = iteration, y = stepsize))+
+  geom_line() + ggtitle("Step Size vs Iteration (Momentum)")
+```
+
+We see that after the first backtrack line search our stepsize is never reduced again. This means that after the armijo condition was satisfied the first time, every other iteration didn't need a change. This can change if we reset the initial stepsize before every backtrack line search. This is consistent with the previous result with the same stepsize.
+
+4. Comment on whether the momentum adjustment helps.
+
+Yes the momentum adjustment greatly benefited our results. We saw a decrease of about 2000 iterations from our normal backtracking and 5000 iterations from our constant step size as well as a much more accurate final answer than both of them.

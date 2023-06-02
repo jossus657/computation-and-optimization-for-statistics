@@ -1,0 +1,180 @@
+---
+title: "STATS 102B HW 4"
+author: "Joshua Susanto"
+date: "2023-05-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+## Problem 1:
+
+Consider the following function $f:R^2→R$, with
+
+$$f(x) ≡ f(x_1, x_2) = 4x_1^2 + 2x_2^2 + 4x_1x_2 + 5x_1 + 2x_2$$
+
+**Part (a):**
+
+Obtain the theoretical minimum of function f(x). Show your work (recall to argue that it is actually a minimum).
+
+First we must find the gradient of f, $\nabla{f}=[\frac{d}{dx_1}f(x), \frac{d}{dx_s}f(x)]^T$
+
+$$\nabla{f}=[\frac{d}{dx_1}(4x_1^2 + 2x_2^2 + 4x_1x_2 + 5x_1 + 2x_2), \frac{d}{dx_s}(4x_1^2 + 2x_2^2 + 4x_1x_2 + 5x_1 + 2x_2)]^T$$
+$$= [(8x_1 + 0 + 4x_2 + 5 + 0), (0 + 4x_2 + 4x_1 + 0 + 2)]^T$$
+$$= [(8x_1 + 4x_2 + 5), (4x_2 + 4x_1 + 2)]^T$$
+Now we must inspect for which values of $(x_1,x_2)$ make $\nabla{f}=0$
+
+$$0 = [(8x_1 + 4x_2 + 5), (4x_2 + 4x_1 + 2)]^T$$
+Which can be rewritten to satisfy the system of equations
+
+$$0 = 8x_1 + 4x_2 + 5 \;\;and\;\; 0 = 4x_2 + 4x_1 + 2$$
+$$-5 = 8x_1 + 4x_2 \;\;and\;\;-2 = 4x_2 + 4x_2 $$
+By multiplying equation 2 by 2 and subtracting equation 1 from equation 2 we get:
+
+$$(-5-(-4)) = (8x_1-8x_1) + (4x_2-8x_2)$$
+$$-1 = -4x_2$$
+$$x_2 = \frac{1}{4}$$
+Plugging this back into equation 1 yields:
+
+$$-5 = 8x_1 + 4(\frac{1}{4})$$
+$$-5 = 8x_1 + 1$$
+$$-6 = 8x_1 + 1$$
+$$x_1 = -\frac{3}{4}$$
+Which makes our critical value 
+
+$$(x_1,x_2) = (-\frac{3}{4},\frac{1}{4})$$
+
+Now we must check for the validity of our second order conditions. We start by finding out hessian matrix,
+
+$$H(x) = 
+	\begin{bmatrix} 
+	f_{xx} & f_{xy}\\
+	f_{yx} & f_{yy}\\
+	\end{bmatrix}$$
+	
+Where $f_{xy}$ denotes the partial derivative of f with respect to y and then x
+
+$$= 
+	\begin{bmatrix} 
+	\frac{d}{dx_1}(8x_1 + 4x_2 + 5) & \frac{d}{dx_1}(4x_2 + 4x_1 + 2)\\
+	\frac{d}{dx_2}(8x_1 + 4x_2 + 5) & \frac{d}{dx_2}(4x_2 + 4x_1 + 2)\\
+	\end{bmatrix}$$
+	
+$$= 
+	\begin{bmatrix} 
+	8+0+0 & 0+4+0\\
+	0+4+0 & 4+0+0\\
+	\end{bmatrix}$$
+
+$$= 
+	\begin{bmatrix} 
+	8 & 4\\
+	4 & 4\\
+	\end{bmatrix}$$
+
+Let $a \in R^2$ and $a$ can be written as $a = (a_1,a_2)^T$
+
+$$a^TH(x)a =  a^T\begin{bmatrix} 
+	8 & 4\\
+	4 & 4\\
+	\end{bmatrix}a$$
+
+$$=  [8a_1+4a_2,4a_1+4a_2]a$$
+
+$$=  8a_1^2+4a_1a_2+4a_1a_2+4a_2^2$$
+
+$$=  8a_1^2+8a_1a_2+4a_2^2$$
+
+Since $8a_1^2 \gt 0$, $4a_2^2 \gt 0$ (when $a \neq 0$) and $8a_1^2 + 4a_2^2 \geq 8a_1a_2$, 
+
+$$H(x)\gt 0 $$
+
+and we can determine that by definition the hessian matrix is positive definite for all values $(x_1,x_2)$. Hence, our sufficient condition is satisfied and $(x_1,x_2) = (-\frac{3}{4},\frac{1}{4})$ is our minimizer.
+
+**Part (b):** 
+
+Using the provided code for gradient descent compute the minimum of f(x). Use the following values for the tolerance parameter: 0.0001, 0.000001, 0.00000001 and for the step size 0.01, 0.05, 0.1. Comment on the accuracy of the calculated minimum as a function of the tolerance parameter, and on the number of iterations as a function of the step size.
+
+```{r}
+objective.function = function(x) {
+            4*x[1]^2 + 2*x[2]^2 + 4*x[1]*x[2] + 5*x[1] + 2*x[2]
+    }
+
+
+derivative = function(x) {
+  c(8*x[1]+4*x[2]+5, 4*x[2]+4*x[1]+2)
+}
+
+
+mystepsize = c(0.01, 0.05, 0.1)
+mytol = c(0.0001, 0.000001, 0.00000001)
+mystartpoint = c(1,2) 
+
+gradientDesc = function(obj.function, startpoint, 
+                        stepsize, conv_threshold, max_iter) {
+  
+  old.point = startpoint
+  gradient = derivative(old.point)
+  new.point = c(old.point[1] - stepsize*gradient[1], 
+                old.point[2] - stepsize*gradient[2])
+  
+
+  old.value.function = obj.function(new.point)
+  
+  converged = F
+  iterations = 0
+  
+  while(converged == F) {
+    ## Implement the gradient descent algorithm
+    old.point = new.point
+    #print(old.point)
+  
+    gradient = derivative(old.point)
+    new.point = c(old.point[1] - stepsize*gradient[1], 
+                  old.point[2] - stepsize*gradient[2])
+    
+    new.value.function = obj.function(new.point)
+    
+    
+    if(abs(old.value.function - new.value.function) <= conv_threshold) {
+      converged = T
+    }
+    
+    data.output = data.frame(iteration = iterations,
+                       old.value.function = old.value.function,
+                       new.value.function = new.value.function,
+                       old.point=old.point, new.point=new.point
+                       )
+    
+    if(exists("iters")) {
+      iters <- rbind(iters, data.output)
+    } else {
+      iters = data.output
+    }
+    
+    iterations = iterations + 1
+    old.value.function = new.value.function
+    
+    if(iterations >= max_iter) break
+  }
+  return(list(converged = converged, 
+              num_iterations = iterations, 
+              old.value.function = old.value.function,
+              new.value.function = new.value.function,
+              coefs = new.point,
+              iters = iters))
+}
+
+
+for (i in 1:length(mytol)) {
+  for (j in 1:length(mystepsize)) {
+    results = gradientDesc(objective.function, mystartpoint, mystepsize[j], mytol[i], 30000)$coefs
+    cat('For tolerance =', mytol[i], 'and step size =', mystepsize[j], 'our minimum is at', results, '\n')
+  }
+}
+```
+
+We can see that the difference in tolerance affects the accuracy of our minimum. A lower tolerance pushes the minimum to be much closer to the true minimum, likely with a trade-off of computational costs due to more iterations. Moreover, we see that within our tolerance levels, our step size also affects our answer the same way, with smaller step sizes making our answer more accurate. However, when the tolerance is lower, we see a smaller effect of step size and accuracy. 
